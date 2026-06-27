@@ -56,6 +56,15 @@ log = logging.getLogger("realsense")
 
 cap = Primitive(id="realsense_camera", namespace="robonix/primitive/camera")
 
+
+def _pump_output(stream, tag: str) -> None:
+    """Forward a child process's merged stdout/stderr into scribe via the
+    package logger — one unified log stream, no side-car *.log file."""
+    for raw in iter(stream.readline, b""):
+        line = raw.decode(errors="replace").rstrip()
+        if line:
+            log.info("[%s] %s", tag, line)
+
 _pkg_root: Path = Path(__file__).resolve().parent.parent
 _rs_proc: subprocess.Popen | None = None
 
@@ -87,14 +96,14 @@ def _spawn_realsense(cfg: dict) -> None:
         f"rgb_camera.color_profile:={cfg.get('rgb_profile', '640x480x30')}",
         f"depth_module.depth_profile:={cfg.get('depth_profile', '848x480x30')}",
     ]
-    log_path = _pkg_root / "rbnx-build" / "data" / "realsense.log"
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    log_fh = open(log_path, "ab", buffering=0)
-    log.info("spawning realsense (cam=%s) → %s", cam, log_path)
+    log.info("spawning realsense (cam=%s)", cam)
     log.debug("launch args: %s", " ".join(args))
     _rs_proc = subprocess.Popen(
-        args, stdout=log_fh, stderr=log_fh, start_new_session=True,
+        args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        start_new_session=True,
     )
+    threading.Thread(target=_pump_output, args=(_rs_proc.stdout, "realsense"),
+                     daemon=True).start()
 
 
 def _kill_realsense() -> None:
