@@ -49,6 +49,9 @@
 #include <ros_sensor.h>
 #include <named_filter.h>
 
+// @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+#include <zc_pubsub.hpp>
+
 #if defined (ACCELERATE_GPU_WITH_GLSL)
 #include <gl_window.h>
 #endif
@@ -244,6 +247,12 @@ namespace realsense2_camera
 
         void publishMetadata(rs2::frame f, const rclcpp::Time& header_time, const std::string& frame_id);
 
+        // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+        void initZcPublishers();
+        void shutdownZcPublishers();
+        void publishZcImage(const sensor_msgs::msg::Image& img_msg, const stream_index_pair& stream);
+        bool ensureZcShm(const char* shm_name);
+
         sensor_msgs::msg::Imu CreateUnitedMessage(const CimuData accel_data, const CimuData gyro_data);
 
         void FillImuData_Copy(const CimuData imu_data, std::deque<sensor_msgs::msg::Imu>& imu_msgs);
@@ -308,6 +317,7 @@ namespace realsense2_camera
         std::map<stream_index_pair, rclcpp::Publisher<IMUInfo>::SharedPtr> _imu_info_publishers;
         std::map<stream_index_pair, rclcpp::Publisher<Extrinsics>::SharedPtr> _extrinsics_publishers;
         rclcpp::Publisher<realsense2_camera_msgs::msg::RGBD>::SharedPtr _rgbd_publisher;
+
         std::map<stream_index_pair, cv::Mat> _images;
         std::map<rs2_format, std::string> _rs_format_to_ros_format;
         std::map<rs2_format, int> _rs_format_to_cv_format;
@@ -349,6 +359,13 @@ namespace realsense2_camera
         mutable std::condition_variable _cv_temp, _cv_mpc, _cv_tf;
         bool _is_profile_changed;
         bool _is_align_depth_changed;
+        // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+        static constexpr const char* ZC_CAMERA_SHM_NAME = "robonix_zc_camera";
+        static constexpr size_t ZC_SHM_SIZE = 67108864;  // 64 MiB
+        std::shared_ptr<ZcPublisher> _zc_depth_publisher;
+        std::shared_ptr<ZcPublisher> _zc_rgb_publisher;
+        std::string _zc_active_shm_name;
+        bool _zc_ready = false;
 
         std::shared_ptr<diagnostic_updater::Updater> _diagnostics_updater;
         rs2::stream_profile _base_profile;
@@ -362,4 +379,3 @@ namespace realsense2_camera
 
     };//end class
 }
-

@@ -35,6 +35,8 @@ void BaseRealSenseNode::setup()
     monitoringProfileChanges();
     updateSensors();
     publishServices();
+    // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+    initZcPublishers();
 }
 
 void BaseRealSenseNode::monitoringProfileChanges()

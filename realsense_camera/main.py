@@ -47,6 +47,7 @@ from pathlib import Path
 import numpy as np
 
 from robonix_api import Primitive, Ok, Err
+from robonix_api.atlas_types import Ros2ZcParams, Transport
 
 logging.basicConfig(
     level=os.environ.get("REALSENSE_LOG_LEVEL", "INFO"),
@@ -93,6 +94,7 @@ def _spawn_realsense(cfg: dict) -> None:
         "publish_tf:=true",  # rtabmap consumes camera_link → optical_frame TFs
         "temporal_filter.enable:=true",
         "hole_filling_filter.enable:=true",
+        f"pointcloud.enable:={'true' if cfg.get('enable_pointcloud', True) else 'false'}",
         f"rgb_camera.color_profile:={cfg.get('rgb_profile', '640x480x30')}",
         f"depth_module.depth_profile:={cfg.get('depth_profile', '848x480x30')}",
     ]
@@ -263,6 +265,11 @@ def init(cfg: dict):
         "depth_topic", f"/{cam}/aligned_depth_to_color/image_raw"
     )
     intrinsics_topic = cfg.get("intrinsics_topic", f"/{cam}/color/camera_info")
+    rgb_zc_topic = cfg.get("rgb_zc_topic", "/camera/rgb_zc")
+    depth_zc_topic = cfg.get("depth_zc_topic", "/camera/depth_zc")
+    pointcloud_zc_topic = cfg.get("pointcloud_zc_topic", "/camera/pointcloud_zc")
+    zc_shm_name = cfg.get("zc_shm_name", "robonix_zc_camera")
+    zc_shm_size = int(cfg.get("zc_shm_size", 67108864))
     sentinel_timeout = float(cfg.get("sentinel_timeout_s", 30.0))
 
     try:
@@ -295,6 +302,39 @@ def init(cfg: dict):
     cap.declare_ros2_topic(
         "robonix/primitive/camera/depth",
         topic=depth_topic, qos="best_effort",
+    )
+    cap.declare_capability(
+        contract_id="robonix/primitive/camera/rgb_zc",
+        endpoint=rgb_zc_topic,
+        transport=Transport.ROS2_ZC,
+        params=Ros2ZcParams(
+            shm_name=zc_shm_name,
+            shm_size=zc_shm_size,
+            qos_profile="best_effort",
+        ),
+        description="RealSense RGB Image stream over shared-memory ZC",
+    )
+    cap.declare_capability(
+        contract_id="robonix/primitive/camera/depth_zc",
+        endpoint=depth_zc_topic,
+        transport=Transport.ROS2_ZC,
+        params=Ros2ZcParams(
+            shm_name=zc_shm_name,
+            shm_size=zc_shm_size,
+            qos_profile="best_effort",
+        ),
+        description="RealSense aligned depth Image stream over shared-memory ZC",
+    )
+    cap.declare_capability(
+        contract_id="robonix/primitive/lidar/lidar3d_zc",
+        endpoint=pointcloud_zc_topic,
+        transport=Transport.ROS2_ZC,
+        params=Ros2ZcParams(
+            shm_name=zc_shm_name,
+            shm_size=zc_shm_size,
+            qos_profile="best_effort",
+        ),
+        description="RealSense PointCloud2 stream over shared-memory ZC",
     )
     # Pinhole intrinsics (sensor_msgs/CameraInfo) for the color stream. Depth is
     # aligned_depth_to_color, so consumers reuse the color K to back-project.

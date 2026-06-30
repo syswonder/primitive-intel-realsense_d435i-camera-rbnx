@@ -117,6 +117,9 @@ find_package(tf2 REQUIRED)
 find_package(diagnostic_updater REQUIRED)
 find_package(OpenCV REQUIRED COMPONENTS core)
 
+# @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+find_package(cpp_pubsub REQUIRED)
+
 find_package(realsense2 2.55.1)
 if (BUILD_ACCELERATE_GPU_WITH_GLSL)
   find_package(realsense2-gl 2.55.1)
@@ -235,6 +238,7 @@ list(APPEND link_libraries ${OpenCV_LIBS})  # add OpenCV libs to link_libraries
 
 target_link_libraries(${PROJECT_NAME}
     ${link_libraries}
+    ${cpp_pubsub_LIBRARIES}
 )
 
 set(dependencies
@@ -249,6 +253,7 @@ set(dependencies
   tf2
   tf2_ros
   diagnostic_updater
+  cpp_pubsub
 )
 
 if (BUILD_ACCELERATE_GPU_WITH_GLSL)

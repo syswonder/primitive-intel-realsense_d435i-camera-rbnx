@@ -20,6 +20,7 @@
 #include <sensor_params.h>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <ros_sensor.h>
+#include <zc_pubsub.hpp>
 
 namespace realsense2_camera
 {
@@ -58,14 +59,20 @@ namespace realsense2_camera
 
         private:
             void setParameters();
+            bool ensureZcShm(const char* shm_name);
+            void publishZcPointCloud(const sensor_msgs::msg::PointCloud2& msg);
 
         private:
+            static constexpr const char* ZC_CAMERA_SHM_NAME = "robonix_zc_camera";
+            static constexpr size_t ZC_SHM_SIZE = 67108864;  // 64 MiB
             bool _is_enabled_pc;
             rclcpp::Node& _node;
             bool _allow_no_texture_points;
             bool _ordered_pc;
             std::mutex _mutex_publisher;
             rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr _pointcloud_publisher;
+            std::shared_ptr<ZcPublisher> _zc_pointcloud_publisher;
+            std::string _zc_active_shm_name;
             std::string _pointcloud_qos;
     };
 
