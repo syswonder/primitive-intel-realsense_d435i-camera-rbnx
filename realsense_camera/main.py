@@ -267,7 +267,6 @@ def init(cfg: dict):
     intrinsics_topic = cfg.get("intrinsics_topic", f"/{cam}/color/camera_info")
     rgb_zc_topic = cfg.get("rgb_zc_topic", "/camera/rgb_zc")
     depth_zc_topic = cfg.get("depth_zc_topic", "/camera/depth_zc")
-    pointcloud_zc_topic = cfg.get("pointcloud_zc_topic", "/camera/pointcloud_zc")
     zc_shm_name = cfg.get("zc_shm_name", "robonix_zc_camera")
     zc_shm_size = int(cfg.get("zc_shm_size", 67108864))
     sentinel_timeout = float(cfg.get("sentinel_timeout_s", 30.0))
@@ -324,17 +323,6 @@ def init(cfg: dict):
             qos_profile="best_effort",
         ),
         description="RealSense aligned depth Image stream over shared-memory ZC",
-    )
-    cap.declare_capability(
-        contract_id="robonix/primitive/lidar/lidar3d_zc",
-        endpoint=pointcloud_zc_topic,
-        transport=Transport.ROS2_ZC,
-        params=Ros2ZcParams(
-            shm_name=zc_shm_name,
-            shm_size=zc_shm_size,
-            qos_profile="best_effort",
-        ),
-        description="RealSense PointCloud2 stream over shared-memory ZC",
     )
     # Pinhole intrinsics (sensor_msgs/CameraInfo) for the color stream. Depth is
     # aligned_depth_to_color, so consumers reuse the color K to back-project.
