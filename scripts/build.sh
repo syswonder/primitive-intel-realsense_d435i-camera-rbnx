@@ -40,7 +40,7 @@ colcon build --symlink-install \
     --cmake-args -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
 cd "$PKG"
 
-FLAGS=(--out-dir "$PKG/rbnx-build/codegen")
+FLAGS=(--mcp --out-dir "$PKG/rbnx-build/codegen")
 [[ "$CLEAN" == "1" ]] && FLAGS+=(--clean)
 echo "[realsense_camera/build] rbnx codegen ${FLAGS[*]}"
 rbnx codegen -p "$PKG" "${FLAGS[@]}"

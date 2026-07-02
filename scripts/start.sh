@@ -14,7 +14,12 @@ if [[ -f "$ZC_SETUP" ]]; then
 fi
 if [[ -f "$PKG/rbnx-build/ws/install/setup.bash" ]]; then
     # shellcheck disable=SC1091
-    set +u; source "$PKG/rbnx-build/ws/install/setup.bash"; set -u
+    set +u
+    if [[ -f "$PKG/rbnx-build/ws/install/local_setup.bash" ]]; then
+        source "$PKG/rbnx-build/ws/install/local_setup.bash"
+    fi
+    source "$PKG/rbnx-build/ws/install/setup.bash"
+    set -u
 fi
 
 if ROBONIX_API="$(rbnx path robonix-api 2>/dev/null)"; then
