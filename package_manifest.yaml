@@ -38,7 +38,6 @@ manifestVersion: 1
 package:
   name: robonix.primitive.intel.realsense_d435i.camera
   version: 0.1.0
-  vendor: robonix
   description: Intel RealSense D435i driver wrapper — declares RGB + depth + extrinsics contracts.
   tags: [primitive, camera, intel, realsense_d435i, rgbd]
   maintainers: [wheatfox <wheatfox17@icloud.com>]
