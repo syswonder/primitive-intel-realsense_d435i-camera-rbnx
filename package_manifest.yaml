@@ -41,7 +41,7 @@ package:
   vendor: robonix
   description: Intel RealSense D435i driver wrapper — declares RGB + depth + extrinsics contracts.
   tags: [primitive, camera, intel, realsense_d435i, rgbd]
-  maintainers: [syswonder]
+  maintainers: [wheatfox <wheatfox17@icloud.com>]
   license: Apache-2.0
 
 capability_id: realsense_camera
