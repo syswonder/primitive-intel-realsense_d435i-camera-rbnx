@@ -22,7 +22,6 @@
 #include <fstream>
 #include <image_publisher.h>
 
-// @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
 #ifdef ROBONIX_ENABLE_ZC
 #include <zc_pubsub.hpp>
 #endif
@@ -144,7 +143,7 @@ BaseRealSenseNode::BaseRealSenseNode(rclcpp::Node& node,
     _is_profile_changed(false),
     _is_align_depth_changed(false)
 #ifdef ROBONIX_ENABLE_ZC
-    , _zc_ready(false)  // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+    , _zc_ready(false)  
 #endif
 #if defined (ACCELERATE_GPU_WITH_GLSL)
     ,_app(1280, 720, "RS_GLFW_Window"),
@@ -180,7 +179,6 @@ BaseRealSenseNode::~BaseRealSenseNode()
         _monitoring_pc->join();
     }
     clearParameters();
-    // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
 #ifdef ROBONIX_ENABLE_ZC
     shutdownZcPublishers();
 #endif
@@ -1063,14 +1061,13 @@ void BaseRealSenseNode::publishFrame(
 
             if (fillROSImageMsgAndReturnStatus(image_cv_matrix, stream, width, height, stream_format, t, img_msg_ptr.get()))
             {
-                // @ai-filled source: base_realsense_node.cpp:L1028-L1035
+
 #ifdef ROBONIX_ENABLE_ZC
                 if (should_publish_zc) {
                     publishZcImage(*img_msg_ptr, stream);
                 }
 #endif
 
-                // Transfer the unique pointer ownership to the RMW
                 if (has_legacy_subscribers) {
                     sensor_msgs::msg::Image *msg_address = img_msg_ptr.get();
                     image_publisher->publish(std::move(img_msg_ptr));
@@ -1255,7 +1252,6 @@ void BaseRealSenseNode::startDiagnosticsUpdater()
     }
 }
 
-// @ai-filled source: base_realsense_node.cpp:L1028-L1035
 #ifdef ROBONIX_ENABLE_ZC
 void BaseRealSenseNode::initZcPublishers()
 {
@@ -1286,7 +1282,6 @@ void BaseRealSenseNode::initZcPublishers()
     }
 }
 
-// @ai-filled source: base_realsense_node.cpp:L141-L167
 void BaseRealSenseNode::shutdownZcPublishers()
 {
     _zc_depth_publisher.reset();
@@ -1304,7 +1299,6 @@ void BaseRealSenseNode::shutdownZcPublishers()
     }
 }
 
-// @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
 bool BaseRealSenseNode::ensureZcShm(const char* shm_name)
 {
     if (shm_name == nullptr || *shm_name == '\0') {
@@ -1331,7 +1325,6 @@ bool BaseRealSenseNode::ensureZcShm(const char* shm_name)
     }
 }
 
-// @ai-filled source: base_realsense_node.cpp:L1028-L1035
 void BaseRealSenseNode::publishZcImage(
     const sensor_msgs::msg::Image& img_msg,
     const stream_index_pair& stream)

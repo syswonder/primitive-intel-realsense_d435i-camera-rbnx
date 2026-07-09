@@ -125,7 +125,6 @@ find_package(tf2 REQUIRED)
 find_package(diagnostic_updater REQUIRED)
 find_package(OpenCV REQUIRED COMPONENTS core)
 
-# @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
 if(ROBONIX_ENABLE_ZC)
   find_package(cpp_pubsub REQUIRED)
 endif()

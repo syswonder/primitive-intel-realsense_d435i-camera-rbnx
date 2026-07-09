@@ -49,7 +49,6 @@
 #include <ros_sensor.h>
 #include <named_filter.h>
 
-// @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
 #ifdef ROBONIX_ENABLE_ZC
 #include <zc_pubsub.hpp>
 #endif
@@ -249,7 +248,6 @@ namespace realsense2_camera
 
         void publishMetadata(rs2::frame f, const rclcpp::Time& header_time, const std::string& frame_id);
 
-        // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
 #ifdef ROBONIX_ENABLE_ZC
         void initZcPublishers();
         void shutdownZcPublishers();
@@ -363,7 +361,6 @@ namespace realsense2_camera
         mutable std::condition_variable _cv_temp, _cv_mpc, _cv_tf;
         bool _is_profile_changed;
         bool _is_align_depth_changed;
-        // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
 #ifdef ROBONIX_ENABLE_ZC
         static constexpr const char* ZC_CAMERA_SHM_NAME = "robonix_zc_camera";
         static constexpr size_t ZC_SHM_SIZE = 67108864;  // 64 MiB
