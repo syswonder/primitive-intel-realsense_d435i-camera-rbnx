@@ -20,10 +20,11 @@ if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
 endif()
 
-# Default to C++14
+# cpp_pubsub's public zero-copy headers use C++17 features.
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 17)
 endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -227,6 +228,7 @@ add_library(${PROJECT_NAME} SHARED
     ${INCLUDES}
     ${SOURCES}
 )
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 
 if (BUILD_ACCELERATE_GPU_WITH_GLSL)
   set(link_libraries ${realsense2-gl_LIBRARY})
