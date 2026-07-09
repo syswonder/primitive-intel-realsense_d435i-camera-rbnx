@@ -36,7 +36,9 @@ void BaseRealSenseNode::setup()
     updateSensors();
     publishServices();
     // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+#ifdef ROBONIX_ENABLE_ZC
     initZcPublishers();
+#endif
 }
 
 void BaseRealSenseNode::monitoringProfileChanges()

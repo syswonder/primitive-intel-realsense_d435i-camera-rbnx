@@ -50,7 +50,9 @@
 #include <named_filter.h>
 
 // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+#ifdef ROBONIX_ENABLE_ZC
 #include <zc_pubsub.hpp>
+#endif
 
 #if defined (ACCELERATE_GPU_WITH_GLSL)
 #include <gl_window.h>
@@ -248,10 +250,12 @@ namespace realsense2_camera
         void publishMetadata(rs2::frame f, const rclcpp::Time& header_time, const std::string& frame_id);
 
         // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+#ifdef ROBONIX_ENABLE_ZC
         void initZcPublishers();
         void shutdownZcPublishers();
         void publishZcImage(const sensor_msgs::msg::Image& img_msg, const stream_index_pair& stream);
         bool ensureZcShm(const char* shm_name);
+#endif
 
         sensor_msgs::msg::Imu CreateUnitedMessage(const CimuData accel_data, const CimuData gyro_data);
 
@@ -360,12 +364,14 @@ namespace realsense2_camera
         bool _is_profile_changed;
         bool _is_align_depth_changed;
         // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+#ifdef ROBONIX_ENABLE_ZC
         static constexpr const char* ZC_CAMERA_SHM_NAME = "robonix_zc_camera";
         static constexpr size_t ZC_SHM_SIZE = 67108864;  // 64 MiB
         std::shared_ptr<ZcPublisher> _zc_depth_publisher;
         std::shared_ptr<ZcPublisher> _zc_rgb_publisher;
         std::string _zc_active_shm_name;
         bool _zc_ready = false;
+#endif
 
         std::shared_ptr<diagnostic_updater::Updater> _diagnostics_updater;
         rs2::stream_profile _base_profile;

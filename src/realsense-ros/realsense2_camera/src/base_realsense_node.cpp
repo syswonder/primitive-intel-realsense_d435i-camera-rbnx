@@ -15,6 +15,7 @@
 #include "../include/base_realsense_node.h"
 #include "assert.h"
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 #include <rclcpp/clock.hpp>
@@ -22,13 +23,32 @@
 #include <image_publisher.h>
 
 // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+#ifdef ROBONIX_ENABLE_ZC
 #include <zc_pubsub.hpp>
+#endif
 
 // Header files for disabling intra-process comms for static broadcaster.
 #include <rclcpp/publisher_options.hpp>
 #include <tf2_ros/qos.hpp>
 
 using namespace realsense2_camera;
+
+#ifdef ROBONIX_ENABLE_ZC
+namespace
+{
+bool robonixZcRuntimeEnabled()
+{
+    const char* value = std::getenv("ROBONIX_ENABLE_ZC");
+    if (value == nullptr || *value == '\0') {
+        return false;
+    }
+    const std::string flag(value);
+    return flag == "1" || flag == "on" || flag == "ON" ||
+           flag == "true" || flag == "TRUE" ||
+           flag == "yes" || flag == "YES";
+}
+}  // namespace
+#endif
 
 SyncedImuPublisher::SyncedImuPublisher(rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher, 
                                        std::size_t waiting_list_size):
@@ -122,8 +142,10 @@ BaseRealSenseNode::BaseRealSenseNode(rclcpp::Node& node,
     _pointcloud(false),
     _imu_sync_method(imu_sync_method::NONE),
     _is_profile_changed(false),
-    _is_align_depth_changed(false),
-    _zc_ready(false)  // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+    _is_align_depth_changed(false)
+#ifdef ROBONIX_ENABLE_ZC
+    , _zc_ready(false)  // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+#endif
 #if defined (ACCELERATE_GPU_WITH_GLSL)
     ,_app(1280, 720, "RS_GLFW_Window"),
     _accelerate_gpu_with_glsl(false),
@@ -159,7 +181,9 @@ BaseRealSenseNode::~BaseRealSenseNode()
     }
     clearParameters();
     // @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
+#ifdef ROBONIX_ENABLE_ZC
     shutdownZcPublishers();
+#endif
     try
     {
         for(auto&& sensor : _available_ros_sensors)
@@ -1008,12 +1032,16 @@ void BaseRealSenseNode::publishFrame(
         }
 
         const bool has_legacy_subscribers = 0 != image_publisher->get_subscription_count();
+#ifdef ROBONIX_ENABLE_ZC
         const bool should_publish_zc =
             _zc_ready &&
             ((stream.first == RS2_STREAM_DEPTH && _zc_depth_publisher &&
               0 != _zc_depth_publisher->get_subscription_count()) ||
              (stream.first == RS2_STREAM_COLOR && _zc_rgb_publisher &&
               0 != _zc_rgb_publisher->get_subscription_count()));
+#else
+        const bool should_publish_zc = false;
+#endif
 
         // if depth/color has subscribers, ask first if rgbd already fetched
         // the images from the frame. if not, fetch the relevant color/depth image.
@@ -1036,9 +1064,11 @@ void BaseRealSenseNode::publishFrame(
             if (fillROSImageMsgAndReturnStatus(image_cv_matrix, stream, width, height, stream_format, t, img_msg_ptr.get()))
             {
                 // @ai-filled source: base_realsense_node.cpp:L1028-L1035
+#ifdef ROBONIX_ENABLE_ZC
                 if (should_publish_zc) {
                     publishZcImage(*img_msg_ptr, stream);
                 }
+#endif
 
                 // Transfer the unique pointer ownership to the RMW
                 if (has_legacy_subscribers) {
@@ -1226,8 +1256,14 @@ void BaseRealSenseNode::startDiagnosticsUpdater()
 }
 
 // @ai-filled source: base_realsense_node.cpp:L1028-L1035
+#ifdef ROBONIX_ENABLE_ZC
 void BaseRealSenseNode::initZcPublishers()
 {
+    if (!robonixZcRuntimeEnabled()) {
+        _zc_ready = false;
+        return;
+    }
+
     try {
         auto qos = rclcpp::QoS(10).best_effort();
 
@@ -1339,3 +1375,4 @@ void BaseRealSenseNode::publishZcImage(
         ROS_WARN_STREAM("[ZC] publishZcImage failed: " << e.what());
     }
 }
+#endif

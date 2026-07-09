@@ -77,6 +77,11 @@ _rgb_frame_id: str = "camera_435i_color_optical_frame"
 _depth_frame_id: str = "camera_435i_depth_optical_frame"
 
 
+def _zc_enabled() -> bool:
+    value = os.environ.get("ROBONIX_ENABLE_ZC", "")
+    return value.lower() in {"1", "on", "true", "yes"}
+
+
 def _spawn_realsense(cfg: dict) -> None:
     """Launch ros2 launch realsense2_camera rs_launch.py with config args."""
     global _rs_proc
@@ -302,28 +307,29 @@ def init(cfg: dict):
         "robonix/primitive/camera/depth",
         topic=depth_topic, qos="best_effort",
     )
-    cap.declare_capability(
-        contract_id="robonix/primitive/camera/rgb_zc",
-        endpoint=rgb_zc_topic,
-        transport=Transport.ROS2_ZC,
-        params=Ros2ZcParams(
-            shm_name=zc_shm_name,
-            shm_size=zc_shm_size,
-            qos_profile="best_effort",
-        ),
-        description="RealSense RGB Image stream over shared-memory ZC",
-    )
-    cap.declare_capability(
-        contract_id="robonix/primitive/camera/depth_zc",
-        endpoint=depth_zc_topic,
-        transport=Transport.ROS2_ZC,
-        params=Ros2ZcParams(
-            shm_name=zc_shm_name,
-            shm_size=zc_shm_size,
-            qos_profile="best_effort",
-        ),
-        description="RealSense aligned depth Image stream over shared-memory ZC",
-    )
+    if _zc_enabled():
+        cap.declare_capability(
+            contract_id="robonix/primitive/camera/rgb_zc",
+            endpoint=rgb_zc_topic,
+            transport=Transport.ROS2_ZC,
+            params=Ros2ZcParams(
+                shm_name=zc_shm_name,
+                shm_size=zc_shm_size,
+                qos_profile="best_effort",
+            ),
+            description="RealSense RGB Image stream over shared-memory ZC",
+        )
+        cap.declare_capability(
+            contract_id="robonix/primitive/camera/depth_zc",
+            endpoint=depth_zc_topic,
+            transport=Transport.ROS2_ZC,
+            params=Ros2ZcParams(
+                shm_name=zc_shm_name,
+                shm_size=zc_shm_size,
+                qos_profile="best_effort",
+            ),
+            description="RealSense aligned depth Image stream over shared-memory ZC",
+        )
     # Pinhole intrinsics (sensor_msgs/CameraInfo) for the color stream. Depth is
     # aligned_depth_to_color, so consumers reuse the color K to back-project.
     # Without this, scene's ConceptGraphs detector blocks forever on

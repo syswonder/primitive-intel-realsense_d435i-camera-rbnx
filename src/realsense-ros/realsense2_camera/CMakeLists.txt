@@ -20,11 +20,18 @@ if(NOT CMAKE_C_STANDARD)
   set(CMAKE_C_STANDARD 99)
 endif()
 
-# cpp_pubsub's public zero-copy headers use C++17 features.
+# Default to C++14. Robonix zero-copy is opt-in because it adds a
+# non-upstream dependency on cpp_pubsub.
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD 14)
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(ROBONIX_ENABLE_ZC OFF)
+if(DEFINED ENV{ROBONIX_ENABLE_ZC} AND "$ENV{ROBONIX_ENABLE_ZC}" STREQUAL "1")
+  set(ROBONIX_ENABLE_ZC ON)
+endif()
+message(STATUS "ROBONIX_ENABLE_ZC = ${ROBONIX_ENABLE_ZC}")
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -119,7 +126,9 @@ find_package(diagnostic_updater REQUIRED)
 find_package(OpenCV REQUIRED COMPONENTS core)
 
 # @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc
-find_package(cpp_pubsub REQUIRED)
+if(ROBONIX_ENABLE_ZC)
+  find_package(cpp_pubsub REQUIRED)
+endif()
 
 find_package(realsense2 2.55.1)
 if (BUILD_ACCELERATE_GPU_WITH_GLSL)
@@ -228,7 +237,10 @@ add_library(${PROJECT_NAME} SHARED
     ${INCLUDES}
     ${SOURCES}
 )
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
+if(ROBONIX_ENABLE_ZC)
+  target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE ROBONIX_ENABLE_ZC)
+endif()
 
 if (BUILD_ACCELERATE_GPU_WITH_GLSL)
   set(link_libraries ${realsense2-gl_LIBRARY})
@@ -240,8 +252,10 @@ list(APPEND link_libraries ${OpenCV_LIBS})  # add OpenCV libs to link_libraries
 
 target_link_libraries(${PROJECT_NAME}
     ${link_libraries}
-    ${cpp_pubsub_LIBRARIES}
 )
+if(ROBONIX_ENABLE_ZC)
+  target_link_libraries(${PROJECT_NAME} ${cpp_pubsub_LIBRARIES})
+endif()
 
 set(dependencies
   cv_bridge
@@ -255,8 +269,11 @@ set(dependencies
   tf2
   tf2_ros
   diagnostic_updater
-  cpp_pubsub
 )
+
+if(ROBONIX_ENABLE_ZC)
+  list(APPEND dependencies cpp_pubsub)
+endif()
 
 if (BUILD_ACCELERATE_GPU_WITH_GLSL)
   list(APPEND dependencies realsense2-gl)

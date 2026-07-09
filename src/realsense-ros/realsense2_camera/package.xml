@@ -29,7 +29,7 @@
   <depend>tf2_ros</depend>
   <depend>diagnostic_updater</depend>
   <!-- @ai-filled source: gen/zc/realsense/zc_driver_patch_manifest.json:depth_zc+rgb_zc -->
-  <depend>cpp_pubsub</depend>
+  <depend condition="$ROBONIX_ENABLE_ZC == 1">cpp_pubsub</depend>
   <test_depend condition="$ROS_DISTRO != foxy">ament_cmake_gtest</test_depend>
   <test_depend condition="$ROS_DISTRO != foxy">launch_testing</test_depend>
   <test_depend condition="$ROS_DISTRO != foxy">ament_cmake_pytest</test_depend>
