@@ -80,14 +80,13 @@ def _spawn_realsense(cfg: dict) -> None:
     """Launch ros2 launch realsense2_camera rs_launch.py with config args."""
     global _rs_proc
     cam = cfg.get("camera_name", "camera_435i")
+    enable_imu = bool(cfg.get("enable_imu", True))
     args = [
         "ros2", "launch", "realsense2_camera", "rs_launch.py",
         "camera_namespace:=/",
         f"camera_name:={cam}",
-        f"enable_imu:={'true' if cfg.get('enable_imu', True) else 'false'}",
-        f"enable_gyro:={'true' if cfg.get('enable_imu', True) else 'false'}",
-        f"enable_accel:={'true' if cfg.get('enable_imu', True) else 'false'}",
-        "unite_imu_method:=2",
+        f"enable_gyro:={'true' if enable_imu else 'false'}",
+        f"enable_accel:={'true' if enable_imu else 'false'}",
         f"align_depth.enable:={'true' if cfg.get('align_depth', True) else 'false'}",
         f"enable_sync:={'true' if cfg.get('enable_sync', True) else 'false'}",
         "publish_tf:=true",  # rtabmap consumes camera_link → optical_frame TFs
@@ -96,6 +95,8 @@ def _spawn_realsense(cfg: dict) -> None:
         f"rgb_camera.color_profile:={cfg.get('rgb_profile', '640x480x30')}",
         f"depth_module.depth_profile:={cfg.get('depth_profile', '848x480x30')}",
     ]
+    if enable_imu:
+        args.append("unite_imu_method:=2")
     log.info("spawning realsense (cam=%s)", cam)
     log.debug("launch args: %s", " ".join(args))
     _rs_proc = subprocess.Popen(
