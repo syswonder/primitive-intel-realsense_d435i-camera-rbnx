@@ -16,6 +16,8 @@
 #   primitive/camera/driver         mode=rpc        transport=gRPC
 #   primitive/camera/rgb            mode=topic_out  transport=ROS2  sensor_msgs/Image (RGB8)
 #   primitive/camera/depth          mode=topic_out  transport=ROS2  sensor_msgs/Image (16UC1)
+#   primitive/camera/rgb_zc         mode=topic_out  transport=ROS2_ZC sensor_msgs/Image
+#   primitive/camera/depth_zc       mode=topic_out  transport=ROS2_ZC sensor_msgs/Image
 #   primitive/camera/extrinsics     mode=topic_out  transport=ROS2  TransformStamped (TODO)
 #   primitive/camera/snapshot       mode=rpc        transport=MCP   one-shot RGB (TODO)
 #   primitive/camera/depth_snapshot mode=rpc        transport=MCP   one-shot depth (TODO)
@@ -50,6 +52,8 @@ capabilities:
   - name: robonix/primitive/camera/driver
   - name: robonix/primitive/camera/rgb
   - name: robonix/primitive/camera/depth
+  - name: robonix/primitive/camera/rgb_zc
+  - name: robonix/primitive/camera/depth_zc
   - name: robonix/primitive/camera/extrinsics
   - name: robonix/primitive/camera/snapshot
   - name: robonix/primitive/camera/depth_snapshot

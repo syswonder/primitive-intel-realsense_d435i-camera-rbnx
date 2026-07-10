@@ -13,11 +13,30 @@
 // limitations under the License.
 
 #include <named_filter.h>
+#include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
 
 
 using namespace realsense2_camera;
+
+#ifdef ROBONIX_ENABLE_ZC
+namespace
+{
+bool robonixZcRuntimeEnabled()
+{
+    const char* value = std::getenv("ROBONIX_ENABLE_ZC");
+    if (value == nullptr || *value == '\0') {
+        return false;
+    }
+    const std::string flag(value);
+    return flag == "1" || flag == "on" || flag == "ON" ||
+           flag == "true" || flag == "TRUE" ||
+           flag == "yes" || flag == "YES";
+}
+}  // namespace
+#endif
 
 NamedFilter::NamedFilter(std::shared_ptr<rs2::filter> filter, std::shared_ptr<Parameters> parameters, rclcpp::Logger logger, bool is_enabled, bool is_set_parameters):
     _filter(filter), _is_enabled(is_enabled), _params(parameters, logger), _logger(logger)
@@ -125,10 +144,21 @@ void PointcloudFilter::setPublisher()
         _pointcloud_publisher = _node.create_publisher<sensor_msgs::msg::PointCloud2>("~/depth/color/points",
                                 rclcpp::QoS(rclcpp::QoSInitialization::from_rmw(qos_string_to_qos(_pointcloud_qos)),
                                             qos_string_to_qos(_pointcloud_qos)));
+#ifdef ROBONIX_ENABLE_ZC
+        if (robonixZcRuntimeEnabled()) {
+            _zc_pointcloud_publisher = std::make_shared<ZcPublisher>(
+                _node.get_node_base_interface().get(),
+                std::string("/camera/pointcloud_zc"),
+                rclcpp::QoS(10).best_effort());
+        }
+#endif
     }
     else if ((!_is_enabled) && (_pointcloud_publisher))
     {
         _pointcloud_publisher.reset();
+#ifdef ROBONIX_ENABLE_ZC
+        _zc_pointcloud_publisher.reset();
+#endif
     }
 }
 
@@ -143,9 +173,18 @@ void reverse_memcpy(unsigned char* dst, const unsigned char* src, size_t n)
 
 void PointcloudFilter::Publish(rs2::points pc, const rclcpp::Time& t, const rs2::frameset& frameset, const std::string& frame_id)
 {
+    bool has_legacy_subscribers = false;
+    bool should_publish_zc = false;
     {
         std::lock_guard<std::mutex> lock_guard(_mutex_publisher);
-        if ((!_pointcloud_publisher) || (!(_pointcloud_publisher->get_subscription_count())))
+        has_legacy_subscribers = _pointcloud_publisher && 0 != _pointcloud_publisher->get_subscription_count();
+        should_publish_zc =
+#ifdef ROBONIX_ENABLE_ZC
+            _zc_pointcloud_publisher && 0 != _zc_pointcloud_publisher->get_subscription_count();
+#else
+            false;
+#endif
+        if (!has_legacy_subscribers && !should_publish_zc)
             return;
     }
     rs2_stream texture_source_id = static_cast<rs2_stream>(_filter->get_option(rs2_option::RS2_OPTION_STREAM_FILTER));
@@ -283,10 +322,83 @@ void PointcloudFilter::Publish(rs2::points pc, const rclcpp::Time& t, const rs2:
     }
     {
         std::lock_guard<std::mutex> lock_guard(_mutex_publisher);
-        if (_pointcloud_publisher)
+#ifdef ROBONIX_ENABLE_ZC
+        if (should_publish_zc)
+            publishZcPointCloud(*msg_pointcloud);
+#endif
+        if (has_legacy_subscribers && _pointcloud_publisher)
             _pointcloud_publisher->publish(std::move(msg_pointcloud));
     }
 }
+
+#ifdef ROBONIX_ENABLE_ZC
+bool PointcloudFilter::ensureZcShm(const char* shm_name)
+{
+    if (shm_name == nullptr || *shm_name == '\0') {
+        return false;
+    }
+
+    if (_zc_active_shm_name == shm_name && manager_ && shm) {
+        return true;
+    }
+
+    if (manager_ && shm) {
+        _zc_active_shm_name = shm_name;
+        return true;
+    }
+
+    try {
+        shm_init(shm_name, ZC_SHM_SIZE);
+        _zc_active_shm_name = shm_name;
+        return true;
+    } catch (const std::exception& e) {
+        ROS_WARN_STREAM("[ZC] Failed to initialize pointcloud shared memory "
+                        << shm_name << ": " << e.what());
+        _zc_active_shm_name.clear();
+        return false;
+    }
+}
+
+void PointcloudFilter::publishZcPointCloud(const sensor_msgs::msg::PointCloud2& msg)
+{
+    if (!_zc_pointcloud_publisher || !ensureZcShm(ZC_CAMERA_SHM_NAME)) {
+        return;
+    }
+
+    try {
+        ShmPointCloud2* shm_pc = manager_->ShmPointCloud2GetNew(shm);
+        if (!shm_pc) {
+            ROS_WARN_STREAM("[ZC] Failed to allocate ShmPointCloud2 in shared memory");
+            return;
+        }
+
+        shm_pc->header.stamp.sec = msg.header.stamp.sec;
+        shm_pc->header.stamp.nanosec = msg.header.stamp.nanosec;
+        shm_pc->header.frame_id = msg.header.frame_id.c_str();
+        shm_pc->height = msg.height;
+        shm_pc->width = msg.width;
+        shm_pc->fields.clear();
+        for (const auto& field : msg.fields) {
+            ShmPointField shm_field(ShmCharAllocator(shm->get_segment_manager()));
+            shm_field.name = field.name.c_str();
+            shm_field.offset = field.offset;
+            shm_field.datatype = field.datatype;
+            shm_field.count = field.count;
+            shm_pc->fields.push_back(shm_field);
+        }
+        shm_pc->is_bigendian = msg.is_bigendian;
+        shm_pc->point_step = msg.point_step;
+        shm_pc->row_step = msg.row_step;
+        shm_pc->data.resize(msg.data.size());
+        std::memcpy(shm_pc->data.data(), msg.data.data(), msg.data.size());
+        shm_pc->is_dense = msg.is_dense;
+
+        _zc_pointcloud_publisher->publish(shm_pc);
+    } catch (const std::exception& e) {
+        ROS_WARN_STREAM("[ZC] publishZcPointCloud failed: " << e.what());
+    }
+}
+#endif
 
 
 AlignDepthFilter::AlignDepthFilter(std::shared_ptr<rs2::filter> filter,

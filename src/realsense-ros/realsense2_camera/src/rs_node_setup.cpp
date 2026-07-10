@@ -35,6 +35,9 @@ void BaseRealSenseNode::setup()
     monitoringProfileChanges();
     updateSensors();
     publishServices();
+#ifdef ROBONIX_ENABLE_ZC
+    initZcPublishers();
+#endif
 }
 
 void BaseRealSenseNode::monitoringProfileChanges()

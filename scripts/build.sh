@@ -26,6 +26,11 @@ ln -snf "$PKG/src/realsense-ros" "$PKG/rbnx-build/ws/src/realsense-ros"
 ROS_DISTRO="${ROS_DISTRO:-humble}"
 # shellcheck disable=SC1091
 set +u; source "/opt/ros/${ROS_DISTRO}/setup.bash"; set -u
+ZC_SETUP="${ROBONIX_ZC_SETUP:-/home/warth/Desktop/build/ros/install/setup.bash}"
+if [[ -f "$ZC_SETUP" ]]; then
+    # shellcheck disable=SC1090
+    set +u; source "$ZC_SETUP"; set -u
+fi
 
 echo "[realsense_camera/build] colcon build (realsense2_camera + msgs)"
 cd "$PKG/rbnx-build/ws"

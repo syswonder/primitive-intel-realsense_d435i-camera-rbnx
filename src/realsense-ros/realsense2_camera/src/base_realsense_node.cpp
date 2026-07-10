@@ -15,16 +15,39 @@
 #include "../include/base_realsense_node.h"
 #include "assert.h"
 #include <algorithm>
+#include <cstdlib>
+#include <cstring>
 #include <mutex>
 #include <rclcpp/clock.hpp>
 #include <fstream>
 #include <image_publisher.h>
+
+#ifdef ROBONIX_ENABLE_ZC
+#include <zc_pubsub.hpp>
+#endif
 
 // Header files for disabling intra-process comms for static broadcaster.
 #include <rclcpp/publisher_options.hpp>
 #include <tf2_ros/qos.hpp>
 
 using namespace realsense2_camera;
+
+#ifdef ROBONIX_ENABLE_ZC
+namespace
+{
+bool robonixZcRuntimeEnabled()
+{
+    const char* value = std::getenv("ROBONIX_ENABLE_ZC");
+    if (value == nullptr || *value == '\0') {
+        return false;
+    }
+    const std::string flag(value);
+    return flag == "1" || flag == "on" || flag == "ON" ||
+           flag == "true" || flag == "TRUE" ||
+           flag == "yes" || flag == "YES";
+}
+}  // namespace
+#endif
 
 SyncedImuPublisher::SyncedImuPublisher(rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher, 
                                        std::size_t waiting_list_size):
@@ -119,6 +142,9 @@ BaseRealSenseNode::BaseRealSenseNode(rclcpp::Node& node,
     _imu_sync_method(imu_sync_method::NONE),
     _is_profile_changed(false),
     _is_align_depth_changed(false)
+#ifdef ROBONIX_ENABLE_ZC
+    , _zc_ready(false)  
+#endif
 #if defined (ACCELERATE_GPU_WITH_GLSL)
     ,_app(1280, 720, "RS_GLFW_Window"),
     _accelerate_gpu_with_glsl(false),
@@ -153,6 +179,9 @@ BaseRealSenseNode::~BaseRealSenseNode()
         _monitoring_pc->join();
     }
     clearParameters();
+#ifdef ROBONIX_ENABLE_ZC
+    shutdownZcPublishers();
+#endif
     try
     {
         for(auto&& sensor : _available_ros_sensors)
@@ -1000,9 +1029,21 @@ void BaseRealSenseNode::publishFrame(
             }
         }
 
+        const bool has_legacy_subscribers = 0 != image_publisher->get_subscription_count();
+#ifdef ROBONIX_ENABLE_ZC
+        const bool should_publish_zc =
+            _zc_ready &&
+            ((stream.first == RS2_STREAM_DEPTH && _zc_depth_publisher &&
+              0 != _zc_depth_publisher->get_subscription_count()) ||
+             (stream.first == RS2_STREAM_COLOR && _zc_rgb_publisher &&
+              0 != _zc_rgb_publisher->get_subscription_count()));
+#else
+        const bool should_publish_zc = false;
+#endif
+
         // if depth/color has subscribers, ask first if rgbd already fetched
         // the images from the frame. if not, fetch the relevant color/depth image.
-        if (0 != image_publisher->get_subscription_count())
+        if (has_legacy_subscribers || should_publish_zc)
         {
             if (image_cv_matrix.empty() && fillCVMatImageAndReturnStatus(f, images, width, height, stream))
             {
@@ -1021,11 +1062,18 @@ void BaseRealSenseNode::publishFrame(
             if (fillROSImageMsgAndReturnStatus(image_cv_matrix, stream, width, height, stream_format, t, img_msg_ptr.get()))
             {
 
-                // Transfer the unique pointer ownership to the RMW
-                sensor_msgs::msg::Image *msg_address = img_msg_ptr.get();
-                image_publisher->publish(std::move(img_msg_ptr));
+#ifdef ROBONIX_ENABLE_ZC
+                if (should_publish_zc) {
+                    publishZcImage(*img_msg_ptr, stream);
+                }
+#endif
 
-                ROS_DEBUG_STREAM(rs2_stream_to_string(f.get_profile().stream_type()) << " stream published, message address: " << std::hex << msg_address);
+                if (has_legacy_subscribers) {
+                    sensor_msgs::msg::Image *msg_address = img_msg_ptr.get();
+                    image_publisher->publish(std::move(img_msg_ptr));
+
+                    ROS_DEBUG_STREAM(rs2_stream_to_string(f.get_profile().stream_type()) << " stream published, message address: " << std::hex << msg_address);
+                }
             }
             else
             {
@@ -1203,3 +1251,121 @@ void BaseRealSenseNode::startDiagnosticsUpdater()
         });
     }
 }
+
+#ifdef ROBONIX_ENABLE_ZC
+void BaseRealSenseNode::initZcPublishers()
+{
+    if (!robonixZcRuntimeEnabled()) {
+        _zc_ready = false;
+        return;
+    }
+
+    try {
+        auto qos = rclcpp::QoS(10).best_effort();
+
+        _zc_depth_publisher = std::make_shared<ZcPublisher>(
+            _node.get_node_base_interface().get(),
+            std::string("/camera/depth_zc"),
+            qos);
+        ROS_INFO_STREAM("[ZC] Depth ZC publisher created on /camera/depth_zc");
+
+        _zc_rgb_publisher = std::make_shared<ZcPublisher>(
+            _node.get_node_base_interface().get(),
+            std::string("/camera/rgb_zc"),
+            qos);
+        ROS_INFO_STREAM("[ZC] RGB ZC publisher created on /camera/rgb_zc");
+
+        _zc_ready = true;
+    } catch (const std::exception& e) {
+        ROS_ERROR_STREAM("[ZC] Failed to initialize ZC publishers: " << e.what());
+        _zc_ready = false;
+    }
+}
+
+void BaseRealSenseNode::shutdownZcPublishers()
+{
+    _zc_depth_publisher.reset();
+    _zc_rgb_publisher.reset();
+    _zc_ready = false;
+    if (_zc_active_shm_name.empty()) {
+        return;
+    }
+    try {
+        shm_shutdown(_zc_active_shm_name.c_str());
+        ROS_INFO_STREAM("[ZC] Shared memory shut down: " << _zc_active_shm_name);
+        _zc_active_shm_name.clear();
+    } catch (const std::exception& e) {
+        ROS_WARN_STREAM("[ZC] Error during SHM shutdown: " << e.what());
+    }
+}
+
+bool BaseRealSenseNode::ensureZcShm(const char* shm_name)
+{
+    if (shm_name == nullptr || *shm_name == '\0') {
+        return false;
+    }
+
+    if (_zc_active_shm_name == shm_name && manager_ && shm) {
+        return true;
+    }
+
+    if (manager_ && shm) {
+        _zc_active_shm_name = shm_name;
+        return true;
+    }
+
+    try {
+        shm_init(shm_name, ZC_SHM_SIZE);
+        _zc_active_shm_name = shm_name;
+        return true;
+    } catch (const std::exception& e) {
+        ROS_WARN_STREAM("[ZC] Failed to switch shared memory to " << shm_name << ": " << e.what());
+        _zc_active_shm_name.clear();
+        return false;
+    }
+}
+
+void BaseRealSenseNode::publishZcImage(
+    const sensor_msgs::msg::Image& img_msg,
+    const stream_index_pair& stream)
+{
+    if (!_zc_ready) {
+        return;
+    }
+
+    try {
+        std::shared_ptr<ZcPublisher> pub;
+        if (stream.first == RS2_STREAM_DEPTH) {
+            pub = _zc_depth_publisher;
+        } else if (stream.first == RS2_STREAM_COLOR) {
+            pub = _zc_rgb_publisher;
+        }
+
+        if (!pub || !ensureZcShm(ZC_CAMERA_SHM_NAME)) {
+            return;
+        }
+
+        ShmImage* shm_img = manager_->ShmImageGetNew(shm);
+        if (!shm_img) {
+            ROS_WARN_STREAM("[ZC] Failed to allocate ShmImage in shared memory");
+            return;
+        }
+
+        // Map ROS Image fields into ShmImage.
+        shm_img->header.stamp.sec = img_msg.header.stamp.sec;
+        shm_img->header.stamp.nanosec = img_msg.header.stamp.nanosec;
+        shm_img->header.frame_id = img_msg.header.frame_id.c_str();
+        shm_img->width = img_msg.width;
+        shm_img->height = img_msg.height;
+        shm_img->encoding = img_msg.encoding.c_str();
+        shm_img->is_bigendian = img_msg.is_bigendian;
+        shm_img->step = img_msg.step;
+        shm_img->data.resize(img_msg.data.size());
+        std::memcpy(shm_img->data.data(), img_msg.data.data(), img_msg.data.size());
+
+        pub->publish(shm_img);
+    } catch (const std::exception& e) {
+        ROS_WARN_STREAM("[ZC] publishZcImage failed: " << e.what());
+    }
+}
+#endif
