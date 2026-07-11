@@ -35,10 +35,14 @@ colcon build --symlink-install \
     --cmake-args -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
 cd "$PKG"
 
-FLAGS=(--mcp --out-dir "$PKG/rbnx-build/codegen")
+FLAGS=(--mcp --ros2 --out-dir "$PKG/rbnx-build/codegen")
 [[ "$CLEAN" == "1" ]] && FLAGS+=(--clean)
 echo "[realsense_camera/build] rbnx codegen ${FLAGS[*]}"
 rbnx codegen -p "$PKG" "${FLAGS[@]}"
+
+ROS2_IDL="$PKG/rbnx-build/codegen/ros2_idl"
+echo "[realsense_camera/build] colcon build (Robonix ROS 2 interfaces)"
+(cd "$ROS2_IDL" && colcon build)
 
 touch "$PKG/rbnx-build/.rbnx-built"
 echo "[realsense_camera/build] done."
