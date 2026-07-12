@@ -90,8 +90,9 @@ def _spawn_realsense(cfg: dict) -> None:
         f"align_depth.enable:={'true' if cfg.get('align_depth', True) else 'false'}",
         f"enable_sync:={'true' if cfg.get('enable_sync', True) else 'false'}",
         "publish_tf:=true",  # rtabmap consumes camera_link → optical_frame TFs
-        "temporal_filter.enable:=true",
-        "hole_filling_filter.enable:=true",
+        f"spatial_filter.enable:={'true' if cfg.get('spatial_filter', True) else 'false'}",
+        f"temporal_filter.enable:={'true' if cfg.get('temporal_filter', True) else 'false'}",
+        f"hole_filling_filter.enable:={'true' if cfg.get('hole_filling_filter', False) else 'false'}",
         f"rgb_camera.color_profile:={cfg.get('rgb_profile', '640x480x30')}",
         f"depth_module.depth_profile:={cfg.get('depth_profile', '848x480x30')}",
     ]

@@ -31,6 +31,9 @@
 #   rgb_profile        default "640x480x30"            — color stream
 #   depth_profile      default "848x480x30"            — depth stream
 #   align_depth        default true                    — depth → color frame
+#   spatial_filter     default true                    — reduce local disparity noise
+#   temporal_filter    default true                    — stabilize depth across frames
+#   hole_filling_filter default false                  — avoid inventing SLAM geometry
 #   enable_imu         default true                    — published, not atlas-routed
 #   sentinel_timeout_s default 30.0
 manifestVersion: 1
