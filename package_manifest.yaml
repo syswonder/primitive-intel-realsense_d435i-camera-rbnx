@@ -51,8 +51,13 @@ start: bash scripts/start.sh
 
 capabilities:
   - name: robonix/primitive/camera/driver
+    transport: grpc
   - name: robonix/primitive/camera/rgb
+    transport: ros2
   - name: robonix/primitive/camera/depth
+    transport: ros2
   - name: robonix/primitive/camera/extrinsics
   - name: robonix/primitive/camera/snapshot
+    transport: mcp
   - name: robonix/primitive/camera/depth_snapshot
+    transport: mcp
